@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rack Rework Status — D1 Pod</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --green:     #1D9E75;
+  --green-lt:  #E1F5EE;
+  --green-dk:  #085041;
+  --amber:     #BA7517;
+  --amber-lt:  #FDF3E0;
+  --amber-dk:  #633806;
+  --red:       #C0392B;
+  --red-lt:    #FCECEA;
+  --red-dk:    #7B1F18;
+  --ink:       #1B2A4A;
+  --ink-2:     #3D4F6B;
+  --ink-3:     #7A8CA8;
+  --rule:      #DDE3EE;
+  --rule-2:    #EDF1F8;
+  --surface:   #FFFFFF;
+  --page:      #EEF2F8;
+  --rad:       12px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* HEADER */
+.hdr {
+  background: var(--ink);
+  padding: 28px 48px 26px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.hdr h1 { font-size: 18px; font-weight: 600; color: #fff; letter-spacing: -.01em; }
+.hdr p  { font-size: 12px; color: rgba(255,255,255,.45); margin-top: 4px; }
+.badges { display: flex; gap: 7px; flex-wrap: wrap; }
+.badge {
+  font-size: 11.5px; font-weight: 600;
+  padding: 4px 11px; border-radius: 20px; white-space: nowrap;
+}
+.b-date    { background: rgba(255,255,255,.1);  color: rgba(255,255,255,.75); }
+.b-done    { background: var(--green-lt); color: var(--green-dk); }
+.b-ongoing { background: var(--amber-lt); color: var(--amber-dk); }
+.b-queued  { background: var(--red-lt);   color: var(--red-dk); }
+
+/* PAGE */
+.page { max-width: 880px; margin: 0 auto; padding: 36px 40px 60px; }
+
+/* SECTION LABEL */
+.sec-label {
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 12px;
+}
+
+/* CARD */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--rad);
+  padding: 24px 28px;
+  margin-bottom: 18px;
+}
+.card-title {
+  font-size: 14px; font-weight: 600; color: var(--ink);
+  margin-bottom: 16px;
+}
+
+/* PROGRESS */
+.prog-row {
+  display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
+}
+.prog-pct {
+  flex-shrink: 0;
+  font-size: 52px; font-weight: 700; line-height: 1;
+  color: var(--ink); letter-spacing: -.04em;
+}
+.prog-pct span { font-size: 22px; font-weight: 400; color: var(--ink-3); }
+.prog-right { flex: 1; min-width: 200px; }
+.track { height: 8px; border-radius: 4px; background: var(--rule); overflow: hidden; margin-bottom: 14px; }
+.fill  { height: 100%; width: 72%; border-radius: 4px; background: var(--green); }
+.stats { display: flex; gap: 18px; flex-wrap: wrap; }
+.stat  { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.dot   { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.stat b { color: var(--ink); font-weight: 600; }
+.prog-note {
+  margin-top: 10px; font-size: 12px; color: var(--ink-3);
+  padding-top: 10px; border-top: 1px solid var(--rule);
+}
+.prog-note b { color: var(--ink-2); }
+
+/* RACK LAYOUT */
+.zone-hd {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--ink-3);
+  display: flex; align-items: center; gap: 8px;
+  margin: 18px 0 8px;
+}
+.zone-hd:first-of-type { margin-top: 0; }
+.zone-count { font-weight: 400; text-transform: none; font-size: 11px; letter-spacing: 0; }
+.rack-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 5px; }
+.rack {
+  width: 44px; height: 32px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; font-family: inherit;
+  cursor: pointer; border: none;
+  transition: transform .1s, box-shadow .1s;
+}
+.rack:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 2; }
+.rack:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.done    { background: var(--green); color: #fff; }
+.ongoing { background: var(--amber); color: #fff; }
+.queued  { background: var(--red);   color: #fff; }
+.zone-rule { border: none; border-top: 1px solid var(--rule); margin: 18px 0 16px; }
+.legend {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  border-top: 1px solid var(--rule); padding-top: 14px; margin-top: 16px;
+}
+.leg { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.leg-sw { width: 11px; height: 11px; border-radius: 3px; }
+
+/* TOOLTIP */
+.tooltip {
+  position: fixed; z-index: 300;
+  background: #1B2A4A; color: #fff;
+  font-size: 12px; line-height: 1.5;
+  padding: 9px 13px; border-radius: 8px;
+  pointer-events: none; opacity: 0; transition: opacity .1s;
+  max-width: 220px; white-space: normal;
+  box-shadow: 0 6px 24px rgba(0,0,0,.28);
+}
+.tooltip.show { opacity: 1; }
+.tip-s { font-weight: 700; font-size: 11px; display: block; margin-bottom: 1px; }
+.tip-n { opacity: .72; }
+
+/* ZONE SUMMARY TABLE */
+.zt { width: 100%; border-collapse: collapse; font-size: 13px; }
+.zt th {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+  padding: 0 0 10px; border-bottom: 1px solid var(--rule); text-align: left;
+}
+.zt th.r, .zt td.r { text-align: right; }
+.zt td { padding: 10px 0; border-bottom: 1px solid var(--rule-2); vertical-align: middle; }
+.zt tr:last-child td { border-bottom: none; }
+.zt .zn { font-weight: 600; }
+.c-g { color: var(--green-dk); font-weight: 600; }
+.c-a { color: var(--amber-dk); font-weight: 600; }
+.c-r { color: var(--red-dk);   font-weight: 600; }
+.c-m { color: var(--ink-3); }
+.mini { height: 5px; width: 80px; border-radius: 3px; background: var(--rule); overflow: hidden; margin-left: auto; }
+.mini-f { height: 100%; border-radius: 3px; background: var(--green); }
+
+/* ISSUES */
+.issue-list { display: flex; flex-direction: column; gap: 10px; }
+.issue {
+  padding: 11px 14px 11px 14px;
+  border-radius: 8px; border-left: 3px solid;
+  font-size: 13px; line-height: 1.5;
+}
+.issue.red   { background: var(--red-lt);   border-color: var(--red); }
+.issue.amber { background: var(--amber-lt); border-color: var(--amber); }
+.issue strong { display: block; font-weight: 600; margin-bottom: 3px; }
+.issue.red   strong { color: var(--red-dk); }
+.issue.amber strong { color: var(--amber-dk); }
+.issue p { color: var(--ink-2); font-size: 12.5px; }
+
+/* ACTIONS */
+.action-list { display: flex; flex-direction: column; }
+.action {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 11px 0; border-bottom: 1px solid var(--rule-2);
+}
+.action:last-child { border-bottom: none; padding-bottom: 0; }
+.owner {
+  flex-shrink: 0; margin-top: 2px;
+  font-size: 10.5px; font-weight: 700;
+  padding: 3px 9px; border-radius: 12px;
+  background: var(--rule-2); color: var(--ink-2);
+  white-space: nowrap;
+}
+.action-body p { font-size: 13px; color: var(--ink); line-height: 1.45; }
+.action-due { display: block; font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+
+/* PIC TABLE */
+.pic { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pic th {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+  padding: 0 0 10px; border-bottom: 1px solid var(--rule); text-align: left;
+}
+.pic td {
+  padding: 10px 16px 10px 0; border-bottom: 1px solid var(--rule-2);
+  vertical-align: top; font-size: 13px;
+}
+.pic tr:last-child td { border-bottom: none; }
+.pic td:first-child { font-weight: 600; width: 130px; white-space: nowrap; color: var(--ink); }
+.pic td:last-child  { color: var(--ink-2); padding-right: 0; }
+
+/* FOOTER */
+.footer {
+  margin-top: 32px; padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  font-size: 11.5px; color: var(--ink-3); line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 48px; }
+  .hdr  { padding: 20px 20px; }
+  .prog-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div>
+    <h1>Rack Rework Status — D1 Pod</h1>
+
+  </div>
+  <div class="badges">
+    <span class="badge b-date">Sep 7, 2026</span>
+    <span class="badge b-done">39 Done</span>
+    <span class="badge b-ongoing">9 Ongoing</span>
+    <span class="badge b-queued">6 Queued</span>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- 1. OVERALL PROGRESS -->
+  <div class="sec-label">Overall progress</div>
+  <div class="card">
+    <div class="prog-row">
+      <div class="prog-pct">72<span>%</span></div>
+      <div class="prog-right">
+        <div class="track"><div class="fill"></div></div>
+        <div class="stats">
+          <div class="stat"><span class="dot" style="background:var(--green)"></span><b>39</b>&nbsp;done</div>
+          <div class="stat"><span class="dot" style="background:var(--amber)"></span><b>9</b>&nbsp;ongoing</div>
+          <div class="stat"><span class="dot" style="background:var(--red)"></span><b>6</b>&nbsp;queued</div>
+          <div class="stat"><span class="dot" style="background:var(--rule)"></span><b>54</b>&nbsp;total racks</div>
+        </div>
+        <div class="prog-note">Original target: Sep 1 &nbsp;→&nbsp; <b>Revised: Sep 8</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. POD LAYOUT -->
+  <div class="sec-label">Pod layout — click any rack for details</div>
+  <div class="card">
+
+    <div class="zone-hd">North side <span class="zone-count">— 17 done · 4 ongoing · 0 queued</span></div>
+    <div class="rack-row">
+      <button class="rack done"    data-rack="45"  data-status="Done"    data-note="S/N 2604002645 · Completed 8/19">45</button>
+      <button class="rack done"    data-rack="46"  data-status="Done"    data-note="S/N 2546000111 · In-spec, no rework needed">46</button>
+      <button class="rack done"    data-rack="47"  data-status="Done"    data-note="S/N 2604002646 · Completed 8/19">47</button>
+      <button class="rack done"    data-rack="48"  data-status="Done"    data-note="S/N 2604002642 · Completed 8/28">48</button>
+      <button class="rack done"    data-rack="49"  data-status="Done"    data-note="S/N 2546000120 · Completed 8/19">49</button>
+      <button class="rack done"    data-rack="50"  data-status="Done"    data-note="S/N 2546000125 · Completed 8/28">50</button>
+      <button class="rack done"    data-rack="51"  data-status="Done"    data-note="S/N 2604002643 · Completed 8/19">51</button>
+      <button class="rack ongoing" data-rack="52"  data-status="Ongoing" data-note="S/N 2546000116 · Opening + busbar out-of-spec">52</button>
+      <button class="rack ongoing" data-rack="53"  data-status="Ongoing" data-note="S/N 2546000113 · Opening out-of-spec">53</button>
+      <button class="rack done"    data-rack="54"  data-status="Done"    data-note="S/N 2604002657 · Completed 8/28">54</button>
+      <button class="rack done"    data-rack="55"  data-status="Done"    data-note="S/N 2604002640 · Completed 8/25">55</button>
+    </div>
+    <div class="rack-row">
+      <button class="rack done"    data-rack="56"  data-status="Done"    data-note="S/N 2546000119 · Completed 8/31">56</button>
+      <button class="rack ongoing" data-rack="57"  data-status="Ongoing" data-note="S/N 2546000112 · Opening out-of-spec">57</button>
+      <button class="rack ongoing" data-rack="58"  data-status="Ongoing" data-note="S/N 2546000132 · Opening inspection + rail exchange">58</button>
+      <button class="rack done"    data-rack="59"  data-status="Done"    data-note="S/N 2604002641 · Completed 8/25">59</button>
+      <button class="rack done"    data-rack="60"  data-status="Done"    data-note="S/N 2532000051 · Completed 8/31">60</button>
+      <button class="rack done"    data-rack="61"  data-status="Done"    data-note="S/N 2546000114 · Completed 9/1">61</button>
+      <button class="rack done"    data-rack="62"  data-status="Done"    data-note="S/N 2604002638 · Completed 8/31">62</button>
+      <button class="rack done"    data-rack="63"  data-status="Done"    data-note="S/N 2604002651 · Completed 8/26">63</button>
+      <button class="rack done"    data-rack="64"  data-status="Done"    data-note="S/N 2546000122 · Completed 9/1">64</button>
+      <button class="rack done"    data-rack="66"  data-status="Done"    data-note="S/N 2546000127 · Completed 9/1">66</button>
+    </div>
+
+    <hr class="zone-rule">
+
+    <div class="zone-hd">South side <span class="zone-count">— 11 done · 2 ongoing · 6 queued</span></div>
+    <div class="rack-row">
+      <button class="rack done"    data-rack="S1"  data-status="Done"    data-note="S/N 2604002656 · NV 991743 · Completed 9/1">S1</button>
+      <button class="rack queued"  data-rack="S2"  data-status="Queued"  data-note="S/N 2604002652 · NV 991702 · Busbar out-of-spec · Est. 8/31 overdue">S2</button>
+      <button class="rack done"    data-rack="S3"  data-status="Done"    data-note="S/N 2546000134 · NV 991703 · Completed 9/3">S3</button>
+      <button class="rack done"    data-rack="S4"  data-status="Done"    data-note="S/N 2604000650 · NV 991704 · Completed 8/26">S4</button>
+      <button class="rack queued"  data-rack="S5"  data-status="Queued"  data-note="S/N 2604002649 · NV 991705 · Busbar + rail out-of-spec · Est. 9/4">S5</button>
+      <button class="rack queued"  data-rack="S6"  data-status="Queued"  data-note="S/N 2546000115 · NV 991706 · Busbar + rail out-of-spec · Est. 9/7">S6</button>
+      <button class="rack ongoing" data-rack="S7"  data-status="Ongoing" data-note="S/N 2604002655 · NV 991707 · In progress">S7</button>
+      <button class="rack ongoing" data-rack="S8"  data-status="Ongoing" data-note="S/N 2604002647 · NV 991708 · In progress">S8</button>
+      <button class="rack queued"  data-rack="S10" data-status="Queued"  data-note="S/N 2546000118 · NV 991710 · Rail exchange + RMA trial run · TBD">S10</button>
+      <button class="rack queued"  data-rack="S11" data-status="Queued"  data-note="S/N 2546000117 · NV 991711 · Rail exchange + RMA trial run · TBD">S11</button>
+    </div>
+    <div class="rack-row">
+      <button class="rack done"   data-rack="S12" data-status="Done"   data-note="S/N 2546000124 · NV 991712 · Completed 8/25">S12</button>
+      <button class="rack done"   data-rack="S13" data-status="Done"   data-note="S/N 2604002654 · NV 991713 · Completed 8/25">S13</button>
+      <button class="rack done"   data-rack="S14" data-status="Done"   data-note="S/N 2604002639 · NV 991714 · Completed 8/26">S14</button>
+      <button class="rack done"   data-rack="S15" data-status="Done"   data-note="S/N 2546000129 · NV 991715 · Completed 8/26">S15</button>
+      <button class="rack queued" data-rack="S16" data-status="Queued" data-note="S/N 2604002653 · NV 991716 · Busbar out-of-spec · Est. 9/7">S16</button>
+      <button class="rack done"   data-rack="S17" data-status="Done"   data-note="S/N 2546000123 · NV 991717 · Completed 7/24">S17</button>
+      <button class="rack done"   data-rack="S18" data-status="Done"   data-note="S/N 2546000126 · NV 991718 · Completed 7/24">S18</button>
+      <button class="rack done"   data-rack="S19" data-status="Done"   data-note="S/N 2604000130 · NV 991744 · Completed 9/1">S19</button>
+      <button class="rack done"   data-rack="S20" data-status="Done"   data-note="S/N 2546000121 · NV 991720 · Completed 7/24">S20</button>
+    </div>
+
+    <hr class="zone-rule">
+
+    <div class="zone-hd">Hsinchu <span class="zone-count">— 10 done · all complete</span></div>
+    <div class="rack-row">
+      <button class="rack done" data-rack="H1"  data-status="Done" data-note="S/N 2530000275 · Completed 8/19 · Spare parts">H1</button>
+      <button class="rack done" data-rack="H2"  data-status="Done" data-note="S/N 2530000226 · Completed 8/19">H2</button>
+      <button class="rack done" data-rack="H3"  data-status="Done" data-note="S/N 2530000277 · Completed 8/19">H3</button>
+      <button class="rack done" data-rack="H4"  data-status="Done" data-note="S/N 2530000026 · Completed 8/19">H4</button>
+      <button class="rack done" data-rack="H5"  data-status="Done" data-note="S/N 2530000299 · Completed 8/19">H5</button>
+      <button class="rack done" data-rack="H6"  data-status="Done" data-note="S/N 2530000283 · Completed 8/20">H6</button>
+      <button class="rack done" data-rack="H7"  data-status="Done" data-note="S/N 2530000225 · Completed 8/20">H7</button>
+      <button class="rack done" data-rack="H8"  data-status="Done" data-note="S/N 2530000029 · Completed 8/20">H8</button>
+      <button class="rack done" data-rack="H9"  data-status="Done" data-note="S/N 2531000660 · Completed 8/20">H9</button>
+      <button class="rack done" data-rack="H10" data-status="Done" data-note="S/N 2530000288 · Completed 8/20">H10</button>
+    </div>
+
+    <hr class="zone-rule">
+
+    <div class="zone-hd">Outside <span class="zone-count">— 1 done · 3 ongoing</span></div>
+    <div class="rack-row">
+      <button class="rack ongoing" style="width:56px" data-rack="Old 14" data-status="Ongoing" data-note="S/N 2604002648 · NV 991719 · Opening inspection · reassembled, pending clearance">Old 14</button>
+      <button class="rack done"    style="width:56px" data-rack="Spare"  data-status="Done"    data-note="S/N 2604002644 · NV 991745 · Completed 7/24">Spare</button>
+      <button class="rack ongoing" style="width:56px" data-rack="Old 1"  data-status="Ongoing" data-note="S/N 2546000131 · NV 991701 · In progress · reassembled, not yet validated">Old 1</button>
+      <button class="rack ongoing" style="width:56px" data-rack="R9"     data-status="Ongoing" data-note="S/N 2546000128 · NV 991709 · Rail out-of-spec · exchanging rails · TBD">R9</button>
+    </div>
+
+    <div class="legend">
+      <div class="leg"><span class="leg-sw" style="background:var(--green)"></span>Done</div>
+      <div class="leg"><span class="leg-sw" style="background:var(--amber)"></span>Ongoing</div>
+      <div class="leg"><span class="leg-sw" style="background:var(--red)"></span>Queued</div>
+    </div>
+  </div>
+
+  <!-- 3. ZONE SUMMARY TABLE -->
+  <div class="sec-label">Zone summary</div>
+  <div class="card">
+    <table class="zt">
+      <thead>
+        <tr>
+          <th>Zone</th>
+          <th>Total racks</th>
+          <th class="r">Done</th>
+          <th class="r">Ongoing</th>
+          <th class="r">Queued</th>
+          <th class="r">Progress</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="zn">North</td>
+          <td>22</td>
+          <td class="r c-g">17</td>
+          <td class="r c-a">4</td>
+          <td class="r c-m">—</td>
+          <td class="r"><div class="mini"><div class="mini-f" style="width:77%"></div></div></td>
+        </tr>
+        <tr>
+          <td class="zn">South</td>
+          <td>19</td>
+          <td class="r c-g">11</td>
+          <td class="r c-a">2</td>
+          <td class="r c-r">6</td>
+          <td class="r"><div class="mini"><div class="mini-f" style="width:58%"></div></div></td>
+        </tr>
+        <tr>
+          <td class="zn">Hsinchu</td>
+          <td>10</td>
+          <td class="r c-g">10</td>
+          <td class="r c-m">—</td>
+          <td class="r c-m">—</td>
+          <td class="r"><div class="mini"><div class="mini-f" style="width:100%"></div></div></td>
+        </tr>
+        <tr>
+          <td class="zn">Outside</td>
+          <td>4</td>
+          <td class="r c-g">1</td>
+          <td class="r c-a">3</td>
+          <td class="r c-m">—</td>
+          <td class="r"><div class="mini"><div class="mini-f" style="width:25%"></div></div></td>
+        </tr>
+        <tr style="border-top: 1px solid var(--rule);">
+          <td class="zn" style="padding-top:12px">Total</td>
+          <td style="padding-top:12px">54</td>
+          <td class="r c-g" style="padding-top:12px">39</td>
+          <td class="r c-a" style="padding-top:12px">9</td>
+          <td class="r c-r" style="padding-top:12px">6</td>
+          <td class="r" style="padding-top:12px"><div class="mini"><div class="mini-f" style="width:72%"></div></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 4. KEY ISSUES -->
+  <div class="sec-label">Key issues</div>
+  <div class="card">
+    <div class="issue-list">
+      <div class="issue red">
+        <strong>South side — 6 racks still queued</strong>
+        <p>
+          S10 (S/N 2546000118 · NV 991710) and S11 (S/N 2546000117 · NV 991711) require rail exchange + RMA trial run — no date scheduled.<br>
+          S2 (S/N 2604002652 · NV 991702) is past its estimated date (8/31), busbar out-of-spec.<br>
+          S5 (S/N 2604002649 · NV 991705) and S6 (S/N 2546000115 · NV 991706) have both busbar and rail out-of-spec.<br>
+          S16 (S/N 2604002653 · NV 991716) has busbar out-of-spec, est. 9/7.
+        </p>
+      </div>
+      <div class="issue amber">
+        <strong>Clamp rework on hold — AS/RS validation required</strong>
+        <p>LiteOn clamp rework is paused pending AS/RS alignment validation. Racks must exit the pod for rework, requiring IAmech to reposition and re-level each rack on return. Validation must complete before work resumes.</p>
+      </div>
+      <div class="issue amber">
+        <strong>Outside — 3 racks still ongoing, no completion date</strong>
+        <p>
+          Old 14 (S/N 2604002648 · NV 991719) — reassembled, still in opening inspection, pending clearance to return to pod.<br>
+          Old 1 (S/N 2546000131 · NV 991701) — reassembled, not yet validated.<br>
+          R9 (S/N 2546000128 · NV 991709) — rail out-of-spec, exchanging rails, date TBD.
+        </p>
+      </div>
+      <div class="issue amber">
+        <strong>North — 4 racks blocked on opening dimension</strong>
+        <p>
+          Rack 52 (S/N 2546000116) — opening + busbar out-of-spec.<br>
+          Rack 53 (S/N 2546000113) — opening out-of-spec.<br>
+          Rack 57 (S/N 2546000112) — opening out-of-spec.<br>
+          Rack 58 (S/N 2546000132) — opening inspection + rail exchange in progress.<br>
+          Root cause (shipping damage vs. manufacturing defect from Hsinchu) under SQE investigation. 2 of 29 L-brackets randomly checked were also found out-of-spec.
+        </p>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- 6. RESPONSIBLE PARTIES -->
+  <div class="sec-label">Responsible parties</div>
+  <div class="card">
+    <table class="pic">
+      <thead>
+        <tr><th>Party</th><th>Scope</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>LiteOn</td>
+          <td>Measure and rework opening dimensions and busbar across all zones</td>
+        </tr>
+        <tr>
+          <td>WUS (Wistron)</td>
+          <td>Disassembly, rail replacement, and full reassembly — manifold, auto pin, mini cartridge, coolant overflow tray</td>
+        </tr>
+        <tr>
+          <td>IAmech</td>
+          <td>Rack repositioning and re-leveling each time racks exit the pod for clamp rework</td>
+        </tr>
+
+        <tr>
+          <td>AS/RS team</td>
+          <td>Alignment validation before clamp rework resumes; confirm auto-pin compatibility post-rework</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+
+
+</div>
+
+<div id="tt" class="tooltip"></div>
+
+<script>
+const tt = document.getElementById('tt');
+const sc = { Done: '#1D9E75', Ongoing: '#BA7517', Queued: '#C0392B' };
+
+document.querySelectorAll('.rack').forEach(btn => {
+  btn.addEventListener('click', e => {
+    const { rack, status, note } = btn.dataset;
+    tt.innerHTML = `<span class="tip-s" style="color:${sc[status]}">${status}</span>Rack ${rack}<br><span class="tip-n">${note}</span>`;
+    tt.classList.add('show');
+    const r = btn.getBoundingClientRect();
+    let left = r.left + r.width / 2 - 110;
+    let top  = r.top - 74 + window.scrollY;
+    if (r.top - 74 < 4) top = r.bottom + 8 + window.scrollY;
+    tt.style.left = Math.max(6, Math.min(left, window.innerWidth - 228)) + 'px';
+    tt.style.top  = top + 'px';
+    e.stopPropagation();
+  });
+});
+
+document.addEventListener('click', () => tt.classList.remove('show'));
+</script>
+</body>
+</html>
